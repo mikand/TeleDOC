@@ -1,8 +1,13 @@
 #!/usr/bin/env python
 
+# Copyright 2012, Pisellino & Aurelio Pam Pam ;-)
+
+
 import Skype4Py
 import time
 import argparse
+import usb.core
+
 
 
 class ExitException(Exception):
@@ -23,6 +28,38 @@ class NoExitArgumentParser(argparse.ArgumentParser):
     pass
 
 
+class LauncherController(object):
+
+    def __init__(self):
+        self.dev = usb.core.find(idVendor=0x2123, idProduct=0x1010)
+        if self.dev is None:
+            raise ValueError('Launcher not connected!')
+         
+        if self.dev.is_kernel_driver_active(0) is True:
+            self.dev.detach_kernel_driver(0)
+
+        self.dev.set_configuration()
+
+    def turretUp(self):
+        self.dev.ctrl_transfer(0x21,0x09,0,0,[0x02,0x02,0x00,0x00,0x00,0x00,0x00,0x00]) 
+
+    def turretDown(self):
+        self.dev.ctrl_transfer(0x21,0x09,0,0,[0x02,0x01,0x00,0x00,0x00,0x00,0x00,0x00])
+
+    def turretLeft(self):
+        self.dev.ctrl_transfer(0x21,0x09,0,0,[0x02,0x04,0x00,0x00,0x00,0x00,0x00,0x00])
+
+    def turretRight(self):
+        self.dev.ctrl_transfer(0x21,0x09,0,0,[0x02,0x08,0x00,0x00,0x00,0x00,0x00,0x00])
+
+    def turretStop(self):
+        self.dev.ctrl_transfer(0x21,0x09,0,0,[0x02,0x20,0x00,0x00,0x00,0x00,0x00,0x00])
+
+    def turretFire(self):
+        self.dev.ctrl_transfer(0x21,0x09,0,0,[0x02,0x10,0x00,0x00,0x00,0x00,0x00,0x00])
+
+    pass
+
 
 class CommandParser(object):
     
@@ -31,7 +68,6 @@ class CommandParser(object):
 
     def __init__(self):
         self.parser = NoExitArgumentParser('')
-        #self.parser = argparse.ArgumentParser(prog="")
         subparsers = self.parser.add_subparsers(dest="subparser", title="Commands", help='')
 
         # create the parser for the "up" command
@@ -118,6 +154,7 @@ class SkypeServer():
         # Create an instance of the Skype class.
         self.skype = Skype4Py.Skype(Transport='x11')
         self.parser = CommandParser()
+        self.controller = LauncherController()
         return
 
 
@@ -134,7 +171,7 @@ class SkypeServer():
             while self.skype.AttachmentStatus == Skype4Py.apiAttachSuccess:
                 time.sleep(5)
         except KeyboardInterrupt:
-            print "Exiting MissleBot"
+            print "\nExiting TeleDOC MissileLauncher\n"
         return
 
 
@@ -169,15 +206,19 @@ class SkypeServer():
 
         # Real commands
         if cmdId == CommandParser.UP:
-            pass
+            self.controller.turretUp()
+
         elif cmdId == CommandParser.DOWN:
-            pass
+            self.controller.turretDown()
+
         elif cmdId == CommandParser.LEFT:
-            pass
+            self.controller.turretLeft()
+
         elif cmdId == CommandParser.RIGHT:
-            pass
+            self.controller.turretRight()
+
         elif cmdId == CommandParser.FIRE:
-            pass
+            self.controller.turretFire()
 
         return "done"
 
