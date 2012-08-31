@@ -2,95 +2,89 @@
 
 import Skype4Py
 import time
+import argparse
+
+
+class ExitException(Exception):
+    def __init__(self, msg):
+        self.message = msg
+
+    pass
+
+
+class NoExitArgumentParser(argparse.ArgumentParser):
+
+    def _print_message(self, message, file=None):
+        raise ExitException(message)
+
+    def exit(self, status=0, message=None):
+        raise ExitException(message)
+       
+    pass
+
 
 
 class CommandParser(object):
     
-    numCommands = 7
+    # Command tokens
     (UP, DOWN, LEFT, RIGHT, FIRE, HELP, UNKNOWN) = range(0,7)
-    (INT) = range(0, 1)
 
     def __init__(self):
-        self.aliases = {}
-        self.aliases[self.UP] = ["up", "u"]
-        self.aliases[self.DOWN] = ["down", "d"]
-        self.aliases[self.LEFT] = ["left", "l"]
-        self.aliases[self.RIGHT] = ["right", "r"]
-        self.aliases[self.FIRE] = ["fire", "f"]
-        self.aliases[self.HELP] = ["help", "h"]
-        self.aliases[self.UNKNOWN] = []
+        self.parser = NoExitArgumentParser('')
+        #self.parser = argparse.ArgumentParser(prog="")
+        subparsers = self.parser.add_subparsers(dest="subparser", title="Commands", help='')
 
-        self.params = {}
-        self.params[self.UP] = [self.INT]
-        self.params[self.DOWN] = [self.INT]
-        self.params[self.LEFT] = [self.INT]
-        self.params[self.RIGHT] = [self.INT]
-        self.params[self.FIRE] = [self.INT]
-        self.params[self.HELP] = []
-        self.params[self.UNKNOWN] = []
+        # create the parser for the "up" command
+        parser_up = subparsers.add_parser('up', help='Moves the launcher up')
+        parser_up.add_argument('times', type=int, nargs='?', default=1, help='The number of repetitions')
 
-        self.usage = {}
-        self.usage[self.UP] = "Moves the thing up"
-        self.usage[self.DOWN] = "Moves the thing down"
-        self.usage[self.LEFT] = "Moves the thing left"
-        self.usage[self.RIGHT] = "Moves the thing right"
-        self.usage[self.FIRE] = "Scatenate l'inferno"
-        self.usage[self.HELP] = "Ths help message"
-        self.usage[self.UNKNOWN] = ""
+        # create the parser for the "down" command
+        parser_down = subparsers.add_parser('down', help='Moves the launcher down')
+        parser_down.add_argument('times', type=int, nargs='?', default=1, help='The number of repetitions')
 
+        # create the parser for the "left" command
+        parser_left = subparsers.add_parser('left', help='Moves the launcher left')
+        parser_left.add_argument('times', type=int, nargs='?', default=1, help='The number of repetitions')
+
+        # create the parser for the "right" command
+        parser_right = subparsers.add_parser('right', help='Moves the launcher right')
+        parser_right.add_argument('times', type=int, nargs='?', default=1, help='The number of repetitions')
+
+        # create the parser for the "fire" command
+        parser_fire = subparsers.add_parser('fire', help='Shoots the launcher')
+        parser_fire.add_argument('times', type=int, nargs='?', default=1, help='The number of repetitions')
+
+        # create the parser for the "fire" command
+        parser_fire = subparsers.add_parser('help', help='Gets this help message')
         return
 
 
     def parse(self, cmd):
-        
         # Clean a bit the string
         cmd = cmd.lower()
         cmd = cmd.strip()
 
         cmds = cmd.split()
+        try:
+            args = self.parser.parse_args(cmds)
 
-        for i in range(0, self.numCommands):
-            for alias in self.aliases[i]:
-                if cmds[0].startswith(alias):
-                    args = []
-                    c = 0
-                    for param in self.params[i]:
-                        c = c + 1
+            if args.subparser == "help":
+                return (self.HELP, [self.parser.format_help()])
+            elif args.subparser == "up":
+                return (self.UP, [args.times])
+            elif args.subparser == "down":
+                return (self.DOWN, [args.times])
+            elif args.subparser == "left":
+                return (self.LEFT, [args.times])
+            elif args.subparser == "right":
+                return (self.RIGHT, [args.times])
+            elif args.subparser == "fire":
+                return (self.FIRE, [args.times])
+            else:
+                return (self.UNKNOWN, [])
 
-                        if c >= len(cmds):
-                            break
-
-                        if self.INT == param:
-                            args.append(int(cmds[c]))
-                    return (i, args)
-        return (self.UNKNOWN, [])
-
-
-    def getHelp(self):
-        res = "Available commands:\n"
-        for i in range(0, self.numCommands):
-            first = True
-            for alias in self.aliases[i]:
-                if not first:
-                    res += " | "
-
-                res += alias
-
-                if first:
-                    first = False
-
-            res += "   "
-
-            for param in self.params[i]:
-                if param == self.INT:
-                    res += "[number] "
-
-            res += "   "
-            res += self.usage[i]
-
-            res += "\n"
-
-        return res
+        except ExitException as e:
+            return (self.HELP, [e.message])
 
 
     def getComamndName(self, cmdId):
@@ -166,7 +160,7 @@ class SkypeServer():
         if cmdId == CommandParser.UNKNOWN:
             return "Unknown command. Use 'help' for usage description"
         elif cmdId == CommandParser.HELP:
-            return self.parser.getHelp()
+            return args[0]
 
         # Times to repeat
         times = 1
@@ -195,6 +189,12 @@ class SkypeServer():
 # Main script
 
 if __name__ == "__main__":
+
+    # import sys
+    # cp = CommandParser()
+    # (cmd, args) = cp.parse(sys.argv[1])
+    # print cp.getComamndName(cmd), args
+
     server = SkypeServer()
     server.start()
 
