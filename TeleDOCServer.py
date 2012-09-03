@@ -180,7 +180,9 @@ class SkypeServer():
         if status == Skype4Py.clsRinging:
             print "Accepting call from %s" % call.PartnerHandle
             call.Answer()
+            time.sleep(2)
             call.StartVideoSend()
+
 
     def onMessageStatus(self, message, status):
         # Dispatch all messages
@@ -207,15 +209,23 @@ class SkypeServer():
         # Real commands
         if cmdId == CommandParser.UP:
             self.controller.turretUp()
+            time.sleep(0.05 * times)
+            self.controller.turretStop()
 
         elif cmdId == CommandParser.DOWN:
             self.controller.turretDown()
+            time.sleep(0.05 * times)
+            self.controller.turretStop()
 
         elif cmdId == CommandParser.LEFT:
             self.controller.turretLeft()
+            time.sleep(0.1 * times)
+            self.controller.turretStop()
 
         elif cmdId == CommandParser.RIGHT:
             self.controller.turretRight()
+            time.sleep(0.1 * times)
+            self.controller.turretStop()
 
         elif cmdId == CommandParser.FIRE:
             self.controller.turretFire()
