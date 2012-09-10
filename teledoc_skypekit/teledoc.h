@@ -36,6 +36,7 @@ class TeledocRenderer {
   IplImage* getThresholdedImage(IplImage* img);
   TRACK_POSITION getPosition(int x, int y);
   void computeEdges();
+  void updateDebug(IplImage* frame, IplImage* thresholded, int x, int y);
 
 #ifdef WIN32
   VideoTransportClient <WinShm> ipc;

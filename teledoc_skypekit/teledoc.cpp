@@ -8,7 +8,7 @@ using namespace boost::python;
   ( (unsigned long)(unsigned char)(ch0)         | ( (unsigned long)(unsigned char)(ch1) << 8 ) | \
     ( (unsigned long)(unsigned char)(ch2) << 16 ) | ( (unsigned long)(unsigned char)(ch3) << 24 ) )
 
-
+#define GRAPHICAL_DEBUG 1
 
 TeledocRenderer::TeledocRenderer() {
   // Here we will inform the runtime that we are capable of drawing
@@ -145,7 +145,12 @@ TeledocRenderer::TRACK_POSITION TeledocRenderer::getPosition(IplImage* frame){
   posY = moment01/area;
 
   // Print it out for debugging purposes
+
+#ifdef GRAPHICAL_DEBUG
+  updateDebug(frame, imgYellowThresh, posX, posY);
+#else
   printf("position (%d,%d)\n", posX, posY);
+#endif
 
   // Release the thresholded image... we need no memory leaks.. please
   cvReleaseImage(&imgYellowThresh);
@@ -204,7 +209,42 @@ TeledocRenderer::TRACK_POSITION TeledocRenderer::getCurrentPosition() {
   return res;
 }
 
+void TeledocRenderer::updateDebug(IplImage* frame, IplImage* thresholded, int x, int y){
+  cvNamedWindow("video");
+  cvNamedWindow("thresh");
+
+  /* Draw Edges */
+  /* Maybe move globally, during ComputeEdges? */
+  imgEdges = cvCreateImage(cvGetSize(frame), 8, 3);
+  cvLine(imgEdges, 
+	 cvPoint(0, north_edge), 
+	 cvPoint(frame_width, north_edge), 
+	 cvScalar(0,255,255), 5);
+
+  cvLine(imgEdges, 
+	 cvPoint(0, south_edge), 
+	 cvPoint(frame_width, south_edge), 
+	 cvScalar(0,255,255), 5);
+
+  cvLine(imgEdges, 
+	 cvPoint(0, 0), 
+	 cvPoint(east_edge, frame_height), 
+	 cvScalar(0,255,255), 5);
+
+  cvLine(imgEdges, 
+	 cvPoint(0, 0), 
+	 cvPoint(west_edge, frame_height), 
+	 cvScalar(0,255,255), 5);
+
+  cvCircle(imgEdges, cvPoint(x,y), 2, cvScalar(0, 255, 255));
+  /* Maybe we should work on a copy of thresholded ? */
+  cvAdd(thresholded, imgEdges, thresholded);
+  cvShowImage("tresh", thresholded);
+  cvShowImage("video", frame);
+
+  cvReleaseImage(&imgEdges);
   
+}  
 
 
 
