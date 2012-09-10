@@ -155,10 +155,45 @@ TeledocRenderer::TRACK_POSITION TeledocRenderer::getPosition(IplImage* frame){
   return getPosition(posX, posY);
 }
 
+/* Compute the position by comparing the values (x,y) with 
+   the edges of the areas. Returns ERROR if the points are 
+   outside of the picture.
+*/
+TeledocRenderer::TRACK_POSITION TeledocRenderer::getPosition(int x, int y) {
+  
+  if ( x < 0 || y < 0 ) 
+    return TeledocRenderer::ERROR;
+  else if ( x > frame_width || y > frame_height )
+    return TeledocRenderer::ERROR;
+  else if ( x > east_edge)
+    return TeledocRenderer::EAST;
+  else if ( x < west_edge)
+    return TeledocRenderer::WEST;
+  else if ( y < north_edge)
+    return TeledocRenderer::NORTH;
+  else if ( y > south_edge)
+    return TeledocRenderer::SOUTH;
+}
 
-TeledocRenderer::TRACK_POSITION getPosition(int x, int y) {
-  /* TODO [APP] : compute position */
-  return TeledocRenderer::ERROR;
+/* Computes the edges location by making some calculation
+   over the image size.
+ */
+void TeledocRenderer::computeEdges(){
+  
+
+  int central_height = (center_size * frame_height)/100;
+  int central_width = (center_size * frame_width)/100;
+
+  north_edge = (frame_height - central_height)/2;
+  south_edge = frame_height - north_edge;
+
+  west_edge = (frame_width - central_width) /2;
+  east_edge = frame_width - west_edge;
+
+  assert(north_edge >= 0 );
+  assert(south_edge >= 0 );
+  assert(east_edge >= 0 );
+  assert(west_edge >= 0 );
 }
 
 
