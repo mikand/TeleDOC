@@ -64,7 +64,7 @@ class LauncherController(object):
 class CommandParser(object):
     
     # Command tokens
-    (UP, DOWN, LEFT, RIGHT, FIRE, HELP, UNKNOWN) = range(0,7)
+    (UP, DOWN, LEFT, RIGHT, FIRE, HELP, UNKNOWN, TRACK, UNTRACK) = range(0,9)
 
     def __init__(self):
         self.parser = NoExitArgumentParser('')
@@ -90,7 +90,14 @@ class CommandParser(object):
         parser_fire = subparsers.add_parser('fire', help='Shoots the launcher')
         parser_fire.add_argument('times', type=int, nargs='?', default=1, help='The number of repetitions')
 
-        # create the parser for the "fire" command
+        # create the parser for the "track" command
+        parser_fire = subparsers.add_parser('track', help='Tracks a given color')
+        parser_fire.add_argument('color', type=int, nargs='?', default=1, help='The cue of the color')
+
+        # create the parser for the "untrack" command
+        parser_fire = subparsers.add_parser('untrack', help='Disables tracking')
+
+        # create the parser for the "help" command
         parser_fire = subparsers.add_parser('help', help='Gets this help message')
         return
 
@@ -116,14 +123,18 @@ class CommandParser(object):
                 return (self.RIGHT, [args.times])
             elif args.subparser == "fire":
                 return (self.FIRE, [args.times])
+            elif args.subparser == "track":
+                return (self.TRACK, [args.color])
+            elif args.subparser == "untrack":
+                return (self.UNTRACK, [])
             else:
                 return (self.UNKNOWN, [])
 
         except ExitException as e:
             return (self.HELP, [e.message])
 
-
-    def getComamndName(self, cmdId):
+    # [APP] This seems deprecated...
+    def getCommandName(self, cmdId):
         if cmdId == self.UP:
             return "UP"
 
@@ -155,6 +166,7 @@ class SkypeServer():
         self.skype = Skype4Py.Skype(Transport='x11')
         self.parser = CommandParser()
         self.controller = LauncherController()
+        self.tracker = None
         return
 
 
@@ -169,11 +181,25 @@ class SkypeServer():
         # Main loop
         try:
             while self.skype.AttachmentStatus == Skype4Py.apiAttachSuccess:
-                time.sleep(5)
+                self.schedule_activities()
         except KeyboardInterrupt:
             print "\nExiting TeleDOC MissileLauncher\n"
         return
 
+    def schedule_activities():
+        """ Here we can insert code that needs to be run 
+            periodically on the system """
+        if self.tracker is not None:
+            # Cool tracker control loop
+            # pos = self.tracker.getCurrentPosition()
+            # if pos == tracker.position.CENTER:
+            #   self.controller.turretStop()
+            # elif pos == tracker.position.NORTH:
+            #   self.controller.turretDown()
+            # ...
+            pass
+        else:
+            timer.sleep(5)
 
     def onCallStatus(self, call, status):
         # Respond automatically with video
@@ -188,11 +214,11 @@ class SkypeServer():
         # Dispatch all messages
         if status == Skype4Py.cmsReceived:
             # I received a message
-            res = self.doComamnd(message.Body)
+            res = self.doCommand(message.Body)
             message.Chat.SendMessage(res)
 
 
-    def doComamnd(self, cmd):
+    def doCommand(self, cmd):
         (cmdId, args) = self.parser.parse(cmd)
         
         # Handle error messages
@@ -230,6 +256,13 @@ class SkypeServer():
         elif cmdId == CommandParser.FIRE:
             self.controller.turretFire()
 
+        # Tracking commands
+        elif cmdId == CommandParser.TRACK:
+            color = args[0]
+#           self.tracker = ColorTracker(...)
+        elif cmdId == CommandParser.UNTRACK:
+            self.tracker = None
+            
         return "done"
 
     pass
@@ -244,7 +277,7 @@ if __name__ == "__main__":
     # import sys
     # cp = CommandParser()
     # (cmd, args) = cp.parse(sys.argv[1])
-    # print cp.getComamndName(cmd), args
+    # print cp.getCommandName(cmd), args
 
     server = SkypeServer()
     server.start()
