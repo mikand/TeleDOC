@@ -17,7 +17,7 @@ accountName = sys.argv[1]
 accountPsw = sys.argv[2]
 loggedIn = False
 devices = None
-renderer = teledoc.TeledocRenderer(100, 30, 5)
+renderer = teledoc.TeledocRenderer(50, 30, 5)
 
 rendered = False
 
@@ -30,16 +30,15 @@ def OnAvailableDeviceListChange(self):
         global renderer
 
         devices = self.GetAvailableVideoDevices()
-        if devices is None or len(table[0]) == 0:
+        if devices is None or len(devices[0]) == 0:
                 print "No video devices found"
                 devices = None
         else:
-                video = self.getPreviewVideo(Skype.Video.MEDIATYPE['MEDIA_VIDEO'], devices[0][0], devices[0][1])
-                video.SetRemoteRendererId(renderer.getKey())
+                print "Video devices found!"
                 rendered = True
                 
 
-Skype.OnAvailableDeviceListChange = OnAvailableDeviceListChange
+MySkype.OnAvailableDeviceListChange = OnAvailableDeviceListChange
 
 
 def AccountOnChange (self, property_name):
@@ -64,18 +63,33 @@ while loggedIn == False:
 # Main loop
 try:
         while not rendered:
+                devices = MySkype.GetAvailableVideoDevices()
+                print(devices)
+                if devices is None or len(devices[0]) == 0:
+                        print "No video devices found"
+                        devices = None
+                else:
+                        rendered = True
                 sleep(1)
-except KeyboardInterrupt:
-        print "\nExiting...\n"
 
+except KeyboardInterrupt:
+        print "\nExiting (1)...\n"
+        MySkype.stop()
+        exit(1)
+
+video = MySkype.GetPreviewVideo('MEDIA_VIDEO', devices[0][0], devices[1][0])
+video.SetRemoteRendererId(renderer.getKey())
 
 # CV loop
 try:
         while True:
                 if renderer.newFrameAvailable():
                         print renderer.getCurrentPosition()
-                sleep(1)
+                sleep(0.05)
 except KeyboardInterrupt:
-        print "\nExiting...\n"
+        print "\nExiting (2)...\n"
+        MySkype.stop()
+        exit(1)
 
 MySkype.stop()
+

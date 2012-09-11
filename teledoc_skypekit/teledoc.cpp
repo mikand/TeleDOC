@@ -1,6 +1,9 @@
 #include "teledoc.h"
 #include <boost/python.hpp>
 
+#include <iostream>
+
+using namespace std;
 using namespace boost::python;
 
 
@@ -8,7 +11,7 @@ using namespace boost::python;
   ( (unsigned long)(unsigned char)(ch0)         | ( (unsigned long)(unsigned char)(ch1) << 8 ) | \
     ( (unsigned long)(unsigned char)(ch2) << 16 ) | ( (unsigned long)(unsigned char)(ch3) << 24 ) )
 
-#define GRAPHICAL_DEBUG 1
+#define GRAPHICAL_DEBUG
 
 
 TeledocRenderer::TeledocRenderer(int centerSize, int color, int tolerance) {
@@ -24,6 +27,11 @@ TeledocRenderer::TeledocRenderer(int centerSize, int color, int tolerance) {
 
   frame_width = 0;
   frame_height = 0;
+
+  center_size = centerSize;
+
+  colorLB = cvScalar(color-tolerance, 100, 100);
+  colorUB = cvScalar(color+tolerance, 255, 255);
 }
 
 
@@ -83,43 +91,52 @@ int TeledocRenderer::getKey() {
 }
 
 
-IplImage* TeledocRenderer::qImageToIplImage(const QImage * qImage)
+IplImage* TeledocRenderer::qImageToIplImage(const QImage * qimg)
 {
-  int width = qImage->width();
-  int height = qImage->height();
-  CvSize Size;
-  Size.height = height;
-  Size.width = width;
+  // int width = qImage->width();
+  // int height = qImage->height();
+  // CvSize Size;
+  // Size.height = height;
+  // Size.width = width;
     
-  IplImage *charIplImageBuffer = cvCreateImage(Size, IPL_DEPTH_8U, 1);
-  char *charTemp = (char *) charIplImageBuffer->imageData;
+  // IplImage *charIplImageBuffer = cvCreateImage(Size, IPL_DEPTH_8U, 1);
+  // char *charTemp = (char *) charIplImageBuffer->imageData;
  
-  for (int y = 0; y < height; y++)
-    {
-      for (int x = 0; x < width; x++)
-        {
-          int index = y * width + x;
-          charTemp[index] = (char) qGray(qImage->pixel(x, y));
-        }
-    }
-  return charIplImageBuffer;
+  // for (int y = 0; y < height; y++)
+  //   {
+  //     for (int x = 0; x < width; x++)
+  //       {
+  //         int index = y * width + x;
+  //         charTemp[index] = (char) qGray(qImage->pixel(x, y));
+  //       }
+  //   }
+  // return charIplImageBuffer;
+
+  IplImage *imgHeader = cvCreateImageHeader( cvSize(qimg->width(), qimg->height()), IPL_DEPTH_8U, 4);
+  imgHeader->imageData = (char*) qimg->bits();
+
+  uchar* newdata = (uchar*) malloc(sizeof(uchar) * qimg->byteCount());
+  memcpy(newdata, qimg->bits(), qimg->byteCount());
+  imgHeader->imageData = (char*) newdata;
+  //cvClo
+  return imgHeader;
 }
   
 
 IplImage* TeledocRenderer::getThresholdedImage(IplImage* img)
 {
-	// Convert the image into an HSV image
-	IplImage* imgHSV = cvCreateImage(cvGetSize(img), 8, 3);
-	cvCvtColor(img, imgHSV, CV_BGR2HSV);
+  // Convert the image into an HSV image
+  IplImage* imgHSV = cvCreateImage(cvGetSize(img), 8, 3);
+  cvCvtColor(img, imgHSV, CV_BGR2HSV);
 
-	IplImage* imgThreshed = cvCreateImage(cvGetSize(img), 8, 1);
+  IplImage* imgThreshed = cvCreateImage(cvGetSize(img), 8, 1);
 
-	// Values 20,100,100 to 30,255,255 working perfect for yellow at around 6pm
-	cvInRangeS(imgHSV, colorLB, colorUB, imgThreshed);
+  // Values 20,100,100 to 30,255,255 working perfect for yellow at around 6pm
+  cvInRangeS(imgHSV, colorLB, colorUB, imgThreshed);
 
-	cvReleaseImage(&imgHSV);
+  cvReleaseImage(&imgHSV);
 
-	return imgThreshed;
+  return imgThreshed;
 }
 
 
@@ -134,6 +151,7 @@ TeledocRenderer::TRACK_POSITION TeledocRenderer::getPosition(IplImage* frame){
 
   // Calculate the moments to estimate the position of the ball
   CvMoments *moments = (CvMoments*)malloc(sizeof(CvMoments));
+
   cvMoments(imgYellowThresh, moments, 1);
 
   // The actual moment values
@@ -183,7 +201,7 @@ TeledocRenderer::TRACK_POSITION TeledocRenderer::getPosition(int x, int y) {
   else if ( y > south_edge)
     return TeledocRenderer::SOUTH;
   else
-    return TeledocRenderer::ERROR;
+    return TeledocRenderer::CENTER;
 }
 
 /* Computes the edges location by making some calculation
@@ -211,11 +229,20 @@ void TeledocRenderer::computeEdges(){
 TeledocRenderer::TRACK_POSITION TeledocRenderer::getCurrentPosition() {
   IplImage* img = getFrameImage();
 
+  if (NULL == img) {
+    cout << "Retrived a NULL image..." << endl;
+    return TeledocRenderer::ERROR;
+  }
+
   if (0 == frame_width && 0 == frame_height) {
     /* First initialization */
-    
+    cout << "Initializing constraints..." << endl;
+
     frame_width = cvGetSize(img).width;
     frame_height = cvGetSize(img).height;
+
+    cout << "  frame_width = " << frame_width << endl;
+    cout << "  frame_height = " << frame_height << endl;
 
     computeEdges();
   }
@@ -232,6 +259,9 @@ void TeledocRenderer::updateDebug(IplImage* frame, IplImage* thresholded, int x,
   /* Draw Edges */
   /* Maybe move globally, during ComputeEdges? */
   IplImage* imgEdges = cvCreateImage(cvGetSize(frame), 8, 3);
+
+  cvMerge(thresholded, thresholded, thresholded, NULL, imgEdges);
+
   cvLine(imgEdges, 
 	 cvPoint(0, north_edge), 
 	 cvPoint(frame_width, north_edge), 
@@ -243,23 +273,25 @@ void TeledocRenderer::updateDebug(IplImage* frame, IplImage* thresholded, int x,
 	 cvScalar(0,255,255), 5);
 
   cvLine(imgEdges, 
-	 cvPoint(0, 0), 
+	 cvPoint(east_edge, 0), 
 	 cvPoint(east_edge, frame_height), 
 	 cvScalar(0,255,255), 5);
 
   cvLine(imgEdges, 
-	 cvPoint(0, 0), 
+	 cvPoint(west_edge, 0), 
 	 cvPoint(west_edge, frame_height), 
 	 cvScalar(0,255,255), 5);
 
   cvCircle(imgEdges, cvPoint(x,y), 2, cvScalar(0, 255, 255));
   /* Maybe we should work on a copy of thresholded ? */
-  cvAdd(thresholded, imgEdges, thresholded);
-  cvShowImage("tresh", thresholded);
+  //cvAdd(imgEdges, thresholded, imgEdges);
+
+  cvShowImage("thresh", imgEdges);
   cvShowImage("video", frame);
 
+  cvWaitKey(10);
+
   cvReleaseImage(&imgEdges);
-  
 }  
 
 
@@ -271,6 +303,15 @@ BOOST_PYTHON_MODULE(teledoc)
 .def("newFrameAvailable", &TeledocRenderer::getKey)
 .def("getCurrentPosition", &TeledocRenderer::getCurrentPosition)
 ;
+
+  enum_<TeledocRenderer::TRACK_POSITION >("TRACK_POSITION")
+    .value("CENTER", TeledocRenderer::CENTER)
+    .value("NORTH", TeledocRenderer::NORTH)
+    .value("SOUTH", TeledocRenderer::SOUTH)
+    .value("WEST", TeledocRenderer::WEST)
+    .value("EAST", TeledocRenderer::EAST)
+    .value("ERROR", TeledocRenderer::ERROR)
+    ;
 }
 
 
