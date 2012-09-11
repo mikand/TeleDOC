@@ -20,6 +20,9 @@ TeledocRenderer::TeledocRenderer() {
   list[0] = SID_MAKEFOURCC('B','I','3','2');
   list[1] = SID_MAKEFOURCC('B','I','2','4');
   ipc.setPreferences(2, list);
+
+  frame_width = 0;
+  frame_height = 0;
 }
 
 
@@ -178,6 +181,8 @@ TeledocRenderer::TRACK_POSITION TeledocRenderer::getPosition(int x, int y) {
     return TeledocRenderer::NORTH;
   else if ( y > south_edge)
     return TeledocRenderer::SOUTH;
+  else
+    return TeledocRenderer::ERROR;
 }
 
 /* Computes the edges location by making some calculation
@@ -215,7 +220,7 @@ void TeledocRenderer::updateDebug(IplImage* frame, IplImage* thresholded, int x,
 
   /* Draw Edges */
   /* Maybe move globally, during ComputeEdges? */
-  imgEdges = cvCreateImage(cvGetSize(frame), 8, 3);
+  IplImage* imgEdges = cvCreateImage(cvGetSize(frame), 8, 3);
   cvLine(imgEdges, 
 	 cvPoint(0, north_edge), 
 	 cvPoint(frame_width, north_edge), 

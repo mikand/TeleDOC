@@ -47,8 +47,9 @@ class TeledocRenderer {
   CvScalar colorLB; /* Lower-bound of the color to track */
   CvScalar colorUB; /* Upper-bound of the color to track */
   int center_size;  /* Size of the central area in percentage */
-  int frame_width = 0;  /* Size of the frames - to initialize when */
-  int frame_height = 0; /* the first frame arrives */
+
+  int frame_width;  /* Size of the frames  */
+  int frame_height;
 
   /* Edges positions */
   int north_edge;
