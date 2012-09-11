@@ -160,24 +160,34 @@ class SkypeServer():
         self.devices = None
 
         # Callback initialization
-        Skype.Account.OnPropertyChange = self.onChangeAccount
-        self.skype.OnAvailableDeviceListChange = self.onAvailableDeviceListChange
-        self.skype.OnMessage = self.onMessageStatus
-        return
-
-    def onChangeAccount(self, account, property_name):
-	if property_name == 'status':
-            if account.status == 'LOGGED_IN':
-                loggedIn = True
-                print('Login complete.')
+        def onChangeAccount(account, property_name):
+            if property_name == 'status':
+                if account.status == 'LOGGED_IN':
+                    self.loggedIn = True
+                    print('Login complete.')
 
 
-    def onAvailableDeviceListChange(self, skype):
-        self.devices = skype.GetAvailableVideoDevices()
-        if self.devices is None or len(self.devices[0]) == 0:
+        def onAvailableDeviceListChange(skype):
+            self.devices = skype.GetAvailableVideoDevices()
+            if self.devices is None or len(self.devices[0]) == 0:
                 print "No video devices found"
                 self.devices = None
-               
+
+
+        def onMessageStatus(message, changesInboxTimestamp, supersedesHistoryMessage, conversation):
+            # Dispatch all messages
+            if message.author != accountName:
+                # I received a message
+                res = self.doCommand(message.body_xml)
+                conversation.PostText(res, False)
+
+
+        Skype.Account.OnPropertyChange = onChangeAccount
+        self.skype.OnAvailableDeviceListChange = onAvailableDeviceListChange
+        self.skype.OnMessage = onMessageStatus
+
+        self.onAvailableDeviceListChange = onAvailableDeviceListChange
+        return
 
     def initializeTracking(self, color):
         # TODO: adjust these constants
@@ -188,25 +198,24 @@ class SkypeServer():
             time.sleep(1)
 
         # Get the first device
-        video = self.skype.GetPreviewVideo('MEDIA_VIDEO', self.devices[0][0], self.devices[1][0])
-        video.SetRemoteRendererId(self.tracker.getKey())
+        self.video = self.skype.GetPreviewVideo('MEDIA_VIDEO', self.devices[0][0], self.devices[1][0])
+        self.video.SetRemoteRendererId(self.tracker.getKey())
 
 
     def deinitializeTracking(self):
-        video.SetRemoteRendererId(0)
+        self.video.SetRemoteRendererId(0)
         self.tracker = None
         pass
 
     def login(self):
-        print accountName
         account = self.skype.GetAccount(accountName)
         account.LoginWithPassword(accountPsw, False, False)
-        while self.loggedIn == False:
+        while not self.loggedIn:
             time.sleep(1)
         
 
     def start(self):
-
+        self.skype.Start()
         self.login()
 
         # Main loop
@@ -217,16 +226,23 @@ class SkypeServer():
             print "\nExiting TeleDOC MissileLauncher\n"
         return
 
-    def schedule_activities():
+    def quit(self):
+        self.skype.stop()
+
+
+    def schedule_activities(self):
         """ Here we can insert code that needs to be run 
             periodically on the system """
         if self.tracker is not None:
             if self.tracker.newFrameAvailable():
-                print self.tracker.getCurrentPosition()
+                pos = self.tracker.getCurrentPosition()
+                print pos
+                
             else:
-                timer.sleep(0.05)
+                time.sleep(0.05)
         else:
-            timer.sleep(0.2)
+            time.sleep(0.2)
+
 
     def onCallStatus(self, call, status):
         # TODO: update to skypekit
@@ -235,14 +251,6 @@ class SkypeServer():
             call.Answer()
             time.sleep(2)
             call.StartVideoSend()
-
-
-    def onMessageStatus(self, message, changesInboxTimestamp, supersedesHistoryMessage, conversation):
-        # Dispatch all messages
-        if message.author != accountName:
-            # I received a message
-            res = self.doCommand(message.body_xml)
-            conversation.PostText(res, False)
 
 
     def doCommand(self, cmd):
@@ -308,4 +316,4 @@ if __name__ == "__main__":
 
     server = SkypeServer()
     server.start()
-
+    server.stop()

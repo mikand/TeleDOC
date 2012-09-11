@@ -17,7 +17,7 @@ accountName = sys.argv[1]
 accountPsw = sys.argv[2]
 loggedIn = False
 devices = None
-renderer = teledoc.TeledocRenderer(50, 30, 5)
+renderer = teledoc.TeledocRenderer(50, 50, 5)
 
 rendered = False
 
