@@ -12,6 +12,9 @@
 #include <opencv/cv.h>
 #include <opencv/highgui.h>
 
+
+#define DEFAULT_TOLERANCE 5
+
 class TeledocRenderer {
  public :
   enum TRACK_POSITION {
@@ -23,7 +26,7 @@ class TeledocRenderer {
     ERROR
   };
 
-  TeledocRenderer();
+  TeledocRenderer(int centerSize, int color, int tolerance=DEFAULT_TOLERANCE);
 
   bool newFrameAvailable();
   int getKey();

@@ -10,7 +10,8 @@ using namespace boost::python;
 
 #define GRAPHICAL_DEBUG 1
 
-TeledocRenderer::TeledocRenderer() {
+
+TeledocRenderer::TeledocRenderer(int centerSize, int color, int tolerance) {
   // Here we will inform the runtime that we are capable of drawing
   // RGB32 and RGB24 bitmaps. The runtime will pick the most suitable
   // of those. Format of the frames we receive back will be included in the
@@ -209,6 +210,16 @@ void TeledocRenderer::computeEdges(){
 
 TeledocRenderer::TRACK_POSITION TeledocRenderer::getCurrentPosition() {
   IplImage* img = getFrameImage();
+
+  if (0 == frame_width && 0 == frame_height) {
+    /* First initialization */
+    
+    frame_width = cvGetSize(img).width;
+    frame_height = cvGetSize(img).height;
+
+    computeEdges();
+  }
+
   TeledocRenderer::TRACK_POSITION res = getPosition(img);
   cvReleaseImage(&img);
   return res;
@@ -255,7 +266,7 @@ void TeledocRenderer::updateDebug(IplImage* frame, IplImage* thresholded, int x,
 
 BOOST_PYTHON_MODULE(teledoc)
 {
-class_<TeledocRenderer>("TeledocRenderer")
+  class_<TeledocRenderer>("TeledocRenderer", init<int,int,int>())
 .def("getKey", &TeledocRenderer::getKey)
 .def("newFrameAvailable", &TeledocRenderer::getKey)
 .def("getCurrentPosition", &TeledocRenderer::getCurrentPosition)
