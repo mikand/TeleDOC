@@ -40,35 +40,83 @@ class NoExitArgumentParser(argparse.ArgumentParser):
 class LauncherController(object):
 
     def __init__(self):
-        pass
-        # self.dev = usb.core.find(idVendor=0x2123, idProduct=0x1010)
-        # if self.dev is None:
-        #     raise ValueError('Launcher not connected!')
-         
-        # if self.dev.is_kernel_driver_active(0) is True:
-        #     self.dev.detach_kernel_driver(0)
+    #    self.init_device(0x2123,0x1010)
 
-        # self.dev.set_configuration()
+    def init_device(self, idVendor, idProduct):
+        self.dev = usb.core.find(idVendor=idVendor, idProduct=idProduct)
+        if self.dev is None:
+            raise ValueError('Launcher not connected!')
+         
+        if self.dev.is_kernel_driver_active(0) is True:
+            self.dev.detach_kernel_driver(0)
+
+        self.dev.set_configuration()
 
     def turretUp(self):
+        """ Start moving the turret up-wards """
         self.dev.ctrl_transfer(0x21,0x09,0,0,[0x02,0x02,0x00,0x00,0x00,0x00,0x00,0x00]) 
 
     def turretDown(self):
+        """ Start moving the turret down-wards """
         self.dev.ctrl_transfer(0x21,0x09,0,0,[0x02,0x01,0x00,0x00,0x00,0x00,0x00,0x00])
 
     def turretLeft(self):
+        """ Start moving the turret left-wards """
         self.dev.ctrl_transfer(0x21,0x09,0,0,[0x02,0x04,0x00,0x00,0x00,0x00,0x00,0x00])
 
     def turretRight(self):
+        """ Start moving the turret right-wards """
         self.dev.ctrl_transfer(0x21,0x09,0,0,[0x02,0x08,0x00,0x00,0x00,0x00,0x00,0x00])
 
     def turretStop(self):
+        """ Stop moving the turret """
         self.dev.ctrl_transfer(0x21,0x09,0,0,[0x02,0x20,0x00,0x00,0x00,0x00,0x00,0x00])
 
     def turretFire(self):
+        """ Shoot """
         self.dev.ctrl_transfer(0x21,0x09,0,0,[0x02,0x10,0x00,0x00,0x00,0x00,0x00,0x00])
 
-    pass
+    def turretOneUp(self):
+        """ Moves the turret up-wards by one pseudo-unit """
+        self.controller.turretUp()
+        time.sleep(0.05 * times)
+        self.controller.turretStop()
+
+    def turretOneDown(self):
+        """ Moves the turret down-wards by one pseudo-unit """
+        self.controller.turretDown()
+        time.sleep(0.05 * times)
+        self.controller.turretStop()
+
+    def turretOneLeft(self):
+        """ Moves the turret left-wards by one pseudo-unit """
+        self.controller.turretLeft()
+        time.sleep(0.1 * times)
+        self.controller.turretStop()
+
+    def turretOneRight(self):
+        """ Moves the turret right-wards by one pseudo-unit """
+        self.controller.turretRight()
+        time.sleep(0.1 * times)
+        self.controller.turretStop()
+
+    def follow(self, tracker):
+        """ Use a Tracker to follow an object """
+        pos = tracker.getPosition()
+        if pos == teledoc.NORTH:
+            self.controller.turretUp()
+        elif pos == teledoc.SOUTH:
+            self.controller.turretDown()
+        elif pos == teledoc.WEST:
+            self.controller.turretRight()
+        elif pos == teledoc.EST:
+            self.controller.turretLeft()
+        elif pos == teledoc.CENTER:
+            self.controller.turretStop()
+        elif pos == teledoc.ERROR:
+            print "Error tracking object"
+        print pos
+
 
 
 class CommandParser(object):
