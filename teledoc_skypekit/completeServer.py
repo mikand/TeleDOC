@@ -103,17 +103,17 @@ class LauncherController(object):
     def follow(self, tracker):
         """ Use a Tracker to follow an object """
         pos = tracker.getPosition()
-        if pos == teledoc.NORTH:
+        if pos == teledoc.TRACKER_POSITION.NORTH:
             self.controller.turretUp()
-        elif pos == teledoc.SOUTH:
+        elif pos == teledoc.TRACKER_POSITION.SOUTH:
             self.controller.turretDown()
-        elif pos == teledoc.WEST:
+        elif pos == teledoc.TRACKER_POSITION.WEST:
             self.controller.turretRight()
-        elif pos == teledoc.EST:
+        elif pos == teledoc.TRACKER_POSITION.EST:
             self.controller.turretLeft()
-        elif pos == teledoc.CENTER:
+        elif pos == teledoc.TRACKER_POSITION.CENTER:
             self.controller.turretStop()
-        elif pos == teledoc.ERROR:
+        elif pos == teledoc.TRACKER_POSITION.ERROR:
             print "Error tracking object"
         print pos
 
@@ -285,20 +285,20 @@ class SkypeServer():
             if self.tracker.newFrameAvailable():
                 pos = self.tracker.getCurrentPosition()
                 # [APP] This should go in the controller
-                if pos == teledoc.NORTH:
+                if pos == teledoc.TRACKER_POSITION.NORTH:
                     self.controller.turretUp()
-                elif pos == teledoc.SOUTH:
+                elif pos == teledoc.TRACKER_POSITION.SOUTH:
                     self.controller.turretDown()
-                elif pos == teledoc.WEST:
+                elif pos == teledoc.TRACKER_POSITION.WEST:
                     self.controller.turretRight()
-                elif pos == teledoc.EST:
+                elif pos == teledoc.TRACKER_POSITION.EST:
                     self.controller.turretLeft()
-                elif pos == teledoc.CENTER:
+                elif pos == teledoc.TRACKER_POSITION.CENTER:
                     self.controller.turretStop()
-                elif pos == teledoc.ERROR:
+                elif pos == teledoc.TRACKER_POSITION.ERROR:
                     print "Error tracking object"
                 print pos
-                
+         
             else:
                 time.sleep(0.05)
         else:
