@@ -236,6 +236,19 @@ class SkypeServer():
         if self.tracker is not None:
             if self.tracker.newFrameAvailable():
                 pos = self.tracker.getCurrentPosition()
+                # [APP] This should go in the controller
+                if pos == teledoc.NORTH:
+                    self.controller.turretUp()
+                elif pos == teledoc.SOUTH:
+                    self.controller.turretDown()
+                elif pos == teledoc.WEST:
+                    self.controller.turretRight()
+                elif pos == teledoc.EST:
+                    self.controller.turretLeft()
+                elif pos == teledoc.CENTER:
+                    self.controller.turretStop()
+                elif pos == teledoc.ERROR:
+                    print "Error tracking object"
                 print pos
                 
             else:

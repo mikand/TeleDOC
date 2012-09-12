@@ -139,9 +139,12 @@ IplImage* TeledocRenderer::getThresholdedImage(IplImage* img)
   cvCvtColor(img, imgHSV, CV_BGR2HSV);
 
   IplImage* imgThreshed = cvCreateImage(cvGetSize(img), 8, 1);
-
+  
+  /* [APP] Smoothing can occur here */
   // Values 20,100,100 to 30,255,255 working perfect for yellow at around 6pm
   cvInRangeS(imgHSV, colorLB, colorUB, imgThreshed);
+
+  /* [APP] Smoothing can occur here */
 
   cvReleaseImage(&imgHSV);
 
@@ -167,6 +170,8 @@ TeledocRenderer::TRACK_POSITION TeledocRenderer::getPosition(IplImage* frame){
   double moment10 = cvGetSpatialMoment(moments, 1, 0);
   double moment01 = cvGetSpatialMoment(moments, 0, 1);
   double area = cvGetCentralMoment(moments, 0, 0);
+
+  /* [APP] Area can be used to avoid processing noise */
 
   // Holding the last and current ball positions
   int posX = 0;
