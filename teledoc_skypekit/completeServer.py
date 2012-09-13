@@ -40,35 +40,83 @@ class NoExitArgumentParser(argparse.ArgumentParser):
 class LauncherController(object):
 
     def __init__(self):
-        pass
-        # self.dev = usb.core.find(idVendor=0x2123, idProduct=0x1010)
-        # if self.dev is None:
-        #     raise ValueError('Launcher not connected!')
-         
-        # if self.dev.is_kernel_driver_active(0) is True:
-        #     self.dev.detach_kernel_driver(0)
+    #    self.init_device(0x2123,0x1010)
 
-        # self.dev.set_configuration()
+    def init_device(self, idVendor, idProduct):
+        self.dev = usb.core.find(idVendor=idVendor, idProduct=idProduct)
+        if self.dev is None:
+            raise ValueError('Launcher not connected!')
+         
+        if self.dev.is_kernel_driver_active(0) is True:
+            self.dev.detach_kernel_driver(0)
+
+        self.dev.set_configuration()
 
     def turretUp(self):
+        """ Start moving the turret up-wards """
         self.dev.ctrl_transfer(0x21,0x09,0,0,[0x02,0x02,0x00,0x00,0x00,0x00,0x00,0x00]) 
 
     def turretDown(self):
+        """ Start moving the turret down-wards """
         self.dev.ctrl_transfer(0x21,0x09,0,0,[0x02,0x01,0x00,0x00,0x00,0x00,0x00,0x00])
 
     def turretLeft(self):
+        """ Start moving the turret left-wards """
         self.dev.ctrl_transfer(0x21,0x09,0,0,[0x02,0x04,0x00,0x00,0x00,0x00,0x00,0x00])
 
     def turretRight(self):
+        """ Start moving the turret right-wards """
         self.dev.ctrl_transfer(0x21,0x09,0,0,[0x02,0x08,0x00,0x00,0x00,0x00,0x00,0x00])
 
     def turretStop(self):
+        """ Stop moving the turret """
         self.dev.ctrl_transfer(0x21,0x09,0,0,[0x02,0x20,0x00,0x00,0x00,0x00,0x00,0x00])
 
     def turretFire(self):
+        """ Shoot """
         self.dev.ctrl_transfer(0x21,0x09,0,0,[0x02,0x10,0x00,0x00,0x00,0x00,0x00,0x00])
 
-    pass
+    def turretOneUp(self):
+        """ Moves the turret up-wards by one pseudo-unit """
+        self.controller.turretUp()
+        time.sleep(0.05 * times)
+        self.controller.turretStop()
+
+    def turretOneDown(self):
+        """ Moves the turret down-wards by one pseudo-unit """
+        self.controller.turretDown()
+        time.sleep(0.05 * times)
+        self.controller.turretStop()
+
+    def turretOneLeft(self):
+        """ Moves the turret left-wards by one pseudo-unit """
+        self.controller.turretLeft()
+        time.sleep(0.1 * times)
+        self.controller.turretStop()
+
+    def turretOneRight(self):
+        """ Moves the turret right-wards by one pseudo-unit """
+        self.controller.turretRight()
+        time.sleep(0.1 * times)
+        self.controller.turretStop()
+
+    def follow(self, tracker):
+        """ Use a Tracker to follow an object """
+        pos = tracker.getPosition()
+        if pos == teledoc.TRACKER_POSITION.NORTH:
+            self.controller.turretUp()
+        elif pos == teledoc.TRACKER_POSITION.SOUTH:
+            self.controller.turretDown()
+        elif pos == teledoc.TRACKER_POSITION.WEST:
+            self.controller.turretRight()
+        elif pos == teledoc.TRACKER_POSITION.EST:
+            self.controller.turretLeft()
+        elif pos == teledoc.TRACKER_POSITION.CENTER:
+            self.controller.turretStop()
+        elif pos == teledoc.TRACKER_POSITION.ERROR:
+            print "Error tracking object"
+        print pos
+
 
 
 class CommandParser(object):
@@ -160,24 +208,34 @@ class SkypeServer():
         self.devices = None
 
         # Callback initialization
-        Skype.Account.OnPropertyChange = self.onChangeAccount
-        self.skype.OnAvailableDeviceListChange = self.onAvailableDeviceListChange
-        self.skype.OnMessage = self.onMessageStatus
-        return
-
-    def onChangeAccount(self, account, property_name):
-	if property_name == 'status':
-            if account.status == 'LOGGED_IN':
-                loggedIn = True
-                print('Login complete.')
+        def onChangeAccount(account, property_name):
+            if property_name == 'status':
+                if account.status == 'LOGGED_IN':
+                    self.loggedIn = True
+                    print('Login complete.')
 
 
-    def onAvailableDeviceListChange(self, skype):
-        self.devices = skype.GetAvailableVideoDevices()
-        if self.devices is None or len(self.devices[0]) == 0:
+        def onAvailableDeviceListChange(skype):
+            self.devices = skype.GetAvailableVideoDevices()
+            if self.devices is None or len(self.devices[0]) == 0:
                 print "No video devices found"
                 self.devices = None
-               
+
+
+        def onMessageStatus(message, changesInboxTimestamp, supersedesHistoryMessage, conversation):
+            # Dispatch all messages
+            if message.author != accountName:
+                # I received a message
+                res = self.doCommand(message.body_xml)
+                conversation.PostText(res, False)
+
+
+        Skype.Account.OnPropertyChange = onChangeAccount
+        self.skype.OnAvailableDeviceListChange = onAvailableDeviceListChange
+        self.skype.OnMessage = onMessageStatus
+
+        self.onAvailableDeviceListChange = onAvailableDeviceListChange
+        return
 
     def initializeTracking(self, color):
         # TODO: adjust these constants
@@ -188,25 +246,24 @@ class SkypeServer():
             time.sleep(1)
 
         # Get the first device
-        video = self.skype.GetPreviewVideo('MEDIA_VIDEO', self.devices[0][0], self.devices[1][0])
-        video.SetRemoteRendererId(self.tracker.getKey())
+        self.video = self.skype.GetPreviewVideo('MEDIA_VIDEO', self.devices[0][0], self.devices[1][0])
+        self.video.SetRemoteRendererId(self.tracker.getKey())
 
 
     def deinitializeTracking(self):
-        video.SetRemoteRendererId(0)
+        self.video.SetRemoteRendererId(0)
         self.tracker = None
         pass
 
     def login(self):
-        print accountName
         account = self.skype.GetAccount(accountName)
         account.LoginWithPassword(accountPsw, False, False)
-        while self.loggedIn == False:
+        while not self.loggedIn:
             time.sleep(1)
         
 
     def start(self):
-
+        self.skype.Start()
         self.login()
 
         # Main loop
@@ -217,16 +274,36 @@ class SkypeServer():
             print "\nExiting TeleDOC MissileLauncher\n"
         return
 
-    def schedule_activities():
+    def quit(self):
+        self.skype.stop()
+
+
+    def schedule_activities(self):
         """ Here we can insert code that needs to be run 
             periodically on the system """
         if self.tracker is not None:
             if self.tracker.newFrameAvailable():
-                print self.tracker.getCurrentPosition()
+                pos = self.tracker.getCurrentPosition()
+                # [APP] This should go in the controller
+                if pos == teledoc.TRACKER_POSITION.NORTH:
+                    self.controller.turretUp()
+                elif pos == teledoc.TRACKER_POSITION.SOUTH:
+                    self.controller.turretDown()
+                elif pos == teledoc.TRACKER_POSITION.WEST:
+                    self.controller.turretRight()
+                elif pos == teledoc.TRACKER_POSITION.EST:
+                    self.controller.turretLeft()
+                elif pos == teledoc.TRACKER_POSITION.CENTER:
+                    self.controller.turretStop()
+                elif pos == teledoc.TRACKER_POSITION.ERROR:
+                    print "Error tracking object"
+                print pos
+         
             else:
-                timer.sleep(0.05)
+                time.sleep(0.05)
         else:
-            timer.sleep(0.2)
+            time.sleep(0.2)
+
 
     def onCallStatus(self, call, status):
         # TODO: update to skypekit
@@ -235,14 +312,6 @@ class SkypeServer():
             call.Answer()
             time.sleep(2)
             call.StartVideoSend()
-
-
-    def onMessageStatus(self, message, changesInboxTimestamp, supersedesHistoryMessage, conversation):
-        # Dispatch all messages
-        if message.author != accountName:
-            # I received a message
-            res = self.doCommand(message.body_xml)
-            conversation.PostText(res, False)
 
 
     def doCommand(self, cmd):
@@ -308,4 +377,4 @@ if __name__ == "__main__":
 
     server = SkypeServer()
     server.start()
-
+    server.stop()

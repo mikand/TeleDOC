@@ -9,8 +9,10 @@
 #endif
 #include <QImage>
 
-#include <opencv/cv.h>
-#include <opencv/highgui.h>
+// #include <opencv/cv.h>
+// #include <opencv/highgui.h>
+
+#include <opencv2/opencv.hpp>
 
 
 #define DEFAULT_TOLERANCE 5
@@ -31,6 +33,9 @@ class TeledocRenderer {
   bool newFrameAvailable();
   int getKey();
   TRACK_POSITION getCurrentPosition();
+  void setColor(int color);
+
+  IplImage* last_frame;
 
  private:
   IplImage* getFrameImage();
@@ -50,6 +55,8 @@ class TeledocRenderer {
   CvScalar colorLB; /* Lower-bound of the color to track */
   CvScalar colorUB; /* Upper-bound of the color to track */
   int center_size;  /* Size of the central area in percentage */
+
+  int tolerance;
 
   int frame_width;  /* Size of the frames  */
   int frame_height;

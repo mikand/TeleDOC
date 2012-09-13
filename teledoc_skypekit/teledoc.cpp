@@ -13,6 +13,8 @@ using namespace boost::python;
 
 #define GRAPHICAL_DEBUG
 
+static void mouse_callback(int event, int x, int y, int flags, void* param);
+
 
 TeledocRenderer::TeledocRenderer(int centerSize, int color, int tolerance) {
   // Here we will inform the runtime that we are capable of drawing
@@ -29,6 +31,8 @@ TeledocRenderer::TeledocRenderer(int centerSize, int color, int tolerance) {
   frame_height = 0;
 
   center_size = centerSize;
+
+  this->tolerance = tolerance;
 
   colorLB = cvScalar(color-tolerance, 100, 100);
   colorUB = cvScalar(color+tolerance, 255, 255);
@@ -83,7 +87,11 @@ IplImage* TeledocRenderer::getFrameImage() {
                            buffer->height,
                            format);
 
-  return qImageToIplImage(img);
+  IplImage* res = qImageToIplImage(img);
+
+  delete img;
+
+  return res;
 }
 
 int TeledocRenderer::getKey() {
@@ -118,6 +126,7 @@ IplImage* TeledocRenderer::qImageToIplImage(const QImage * qimg)
   uchar* newdata = (uchar*) malloc(sizeof(uchar) * qimg->byteCount());
   memcpy(newdata, qimg->bits(), qimg->byteCount());
   imgHeader->imageData = (char*) newdata;
+
   //cvClo
   return imgHeader;
 }
@@ -130,9 +139,12 @@ IplImage* TeledocRenderer::getThresholdedImage(IplImage* img)
   cvCvtColor(img, imgHSV, CV_BGR2HSV);
 
   IplImage* imgThreshed = cvCreateImage(cvGetSize(img), 8, 1);
-
+  
+  /* [APP] Smoothing can occur here */
   // Values 20,100,100 to 30,255,255 working perfect for yellow at around 6pm
   cvInRangeS(imgHSV, colorLB, colorUB, imgThreshed);
+
+  /* [APP] Smoothing can occur here */
 
   cvReleaseImage(&imgHSV);
 
@@ -158,6 +170,8 @@ TeledocRenderer::TRACK_POSITION TeledocRenderer::getPosition(IplImage* frame){
   double moment10 = cvGetSpatialMoment(moments, 1, 0);
   double moment01 = cvGetSpatialMoment(moments, 0, 1);
   double area = cvGetCentralMoment(moments, 0, 0);
+
+  /* [APP] Area can be used to avoid processing noise */
 
   // Holding the last and current ball positions
   int posX = 0;
@@ -259,6 +273,8 @@ void TeledocRenderer::updateDebug(IplImage* frame, IplImage* thresholded, int x,
   /* Draw Edges */
   /* Maybe move globally, during ComputeEdges? */
   IplImage* imgEdges = cvCreateImage(cvGetSize(frame), 8, 3);
+  IplImage* imgHSV = cvCreateImage(cvGetSize(frame), 8, 3);
+  cvCvtColor(frame, imgHSV, CV_BGR2HSV);
 
   cvMerge(thresholded, thresholded, thresholded, NULL, imgEdges);
 
@@ -289,11 +305,20 @@ void TeledocRenderer::updateDebug(IplImage* frame, IplImage* thresholded, int x,
   cvShowImage("thresh", imgEdges);
   cvShowImage("video", frame);
 
+  this->last_frame = imgHSV;
+  cvSetMouseCallback("video", mouse_callback, (void*) this);
+
   cvWaitKey(10);
 
   cvReleaseImage(&imgEdges);
-}  
+  cvReleaseImage(&imgHSV);
+} 
 
+ 
+void TeledocRenderer::setColor(int color) {
+  colorLB = cvScalar(color - this->tolerance, 50, 50);
+  colorUB = cvScalar(color + this->tolerance, 255, 255);
+}
 
 
 BOOST_PYTHON_MODULE(teledoc)
@@ -317,7 +342,16 @@ BOOST_PYTHON_MODULE(teledoc)
 
 
 
+static void mouse_callback(int event, int x, int y, int flags, void* param) {
+  TeledocRenderer* tr = (TeledocRenderer*) param;
+  IplImage* img = (IplImage*) tr->last_frame;
 
+  if (event == CV_EVENT_LBUTTONDOWN) {
+    //cout << "X=" << x << ", Y=" << y << endl;
+    //    CvScalar s = cvGet2D(image, x, y);
+    tr->setColor(((uchar *)(img->imageData + x*img->widthStep))[y*img->nChannels +0]);
+  }        
+}
 
 
 // static PyObject *
