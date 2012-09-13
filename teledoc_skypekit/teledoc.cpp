@@ -96,8 +96,6 @@ IplImage* TeledocRenderer::qImageToIplImage(const QImage * qimg)
 }
   
 
-
-
 Tracker::TRACK_POSITION TeledocRenderer::getCurrentPosition() {
   IplImage* img = getFrameImage();
 

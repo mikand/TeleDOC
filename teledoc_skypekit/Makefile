@@ -8,3 +8,6 @@ tracker.o: tracker.cpp
 
 test: main.o tracker.o
 	g++ main.o tracker.o -lopencv_core -lopencv_highgui -lopencv_imgproc -o test
+
+clean:
+	rm -rf test, main.o tracker.o

@@ -5,7 +5,8 @@
 import time
 import sys
 import argparse
-import usb.core
+import usb.core # This import does not work on debian
+#import usb
 import keypair
 import teledoc
 
@@ -36,40 +37,111 @@ class NoExitArgumentParser(argparse.ArgumentParser):
        
     pass
 
-
 class LauncherController(object):
 
     def __init__(self):
-        pass
-        # self.dev = usb.core.find(idVendor=0x2123, idProduct=0x1010)
-        # if self.dev is None:
-        #     raise ValueError('Launcher not connected!')
-         
-        # if self.dev.is_kernel_driver_active(0) is True:
-        #     self.dev.detach_kernel_driver(0)
+        self.init_device(0x2123,0x1010)
+	pass
 
-        # self.dev.set_configuration()
+    def init_device(self, idVendor, idProduct):
+        self.dev = usb.core.find(idVendor=idVendor, idProduct=idProduct)
+        if self.dev is None:
+            raise ValueError('Launcher not connected!')
+         
+        if self.dev.is_kernel_driver_active(0) is True:
+            self.dev.detach_kernel_driver(0)
+
+        self.dev.set_configuration()
 
     def turretUp(self):
+        """ Start moving the turret up-wards """
         self.dev.ctrl_transfer(0x21,0x09,0,0,[0x02,0x02,0x00,0x00,0x00,0x00,0x00,0x00]) 
 
     def turretDown(self):
+        """ Start moving the turret down-wards """
         self.dev.ctrl_transfer(0x21,0x09,0,0,[0x02,0x01,0x00,0x00,0x00,0x00,0x00,0x00])
 
     def turretLeft(self):
+        """ Start moving the turret left-wards """
         self.dev.ctrl_transfer(0x21,0x09,0,0,[0x02,0x04,0x00,0x00,0x00,0x00,0x00,0x00])
 
     def turretRight(self):
+        """ Start moving the turret right-wards """
         self.dev.ctrl_transfer(0x21,0x09,0,0,[0x02,0x08,0x00,0x00,0x00,0x00,0x00,0x00])
 
     def turretStop(self):
+        """ Stop moving the turret """
         self.dev.ctrl_transfer(0x21,0x09,0,0,[0x02,0x20,0x00,0x00,0x00,0x00,0x00,0x00])
 
     def turretFire(self):
+        """ Shoot """
         self.dev.ctrl_transfer(0x21,0x09,0,0,[0x02,0x10,0x00,0x00,0x00,0x00,0x00,0x00])
 
-    pass
+    def turretOneUp(self, times=1):
+        """ Moves the turret up-wards by one pseudo-unit """
+        self.turretUp()
+        time.sleep(0.05 * times)
+        self.turretStop()
 
+    def turretOneDown(self, times=1):
+        """ Moves the turret down-wards by one pseudo-unit """
+        self.turretDown()
+        time.sleep(0.05 * times)
+        self.turretStop()
+
+    def turretOneLeft(self, times=1):
+        """ Moves the turret left-wards by one pseudo-unit """
+        self.turretLeft()
+        time.sleep(0.1 * times)
+        self.turretStop()
+
+    def turretOneRight(self, times=1):
+        """ Moves the turret right-wards by one pseudo-unit """
+        self.turretRight()
+        time.sleep(0.1 * times)
+        self.turretStop()
+
+    def follow(self, tracker):
+        """ Use a Tracker to follow an object """
+        pos = tracker.getCurrentPosition()
+        if pos == teledoc.TRACK_POSITION.NORTH:
+            self.turretUp()
+        elif pos == teledoc.TRACK_POSITION.SOUTH:
+            self.turretDown()
+        elif pos == teledoc.TRACK_POSITION.WEST:
+            self.turretRight()
+        elif pos == teledoc.TRACK_POSITION.EAST:
+            self.turretLeft()
+        elif pos == teledoc.TRACK_POSITION.CENTER:
+            self.turretStop()
+        elif pos == teledoc.TRACK_POSITION.ERROR:
+            print "Error tracking object"
+        print pos
+
+class FakeLauncherController(LauncherController):
+    def __init__(self):
+        print "I'm a fake launcher!"
+
+    def turretUp(self):
+        print "Controller: UP"
+
+    def turretDown(self):
+        print "Controller: DOWN"
+
+    def turretLeft(self):
+        print "Controller: LEFT"
+
+    def turretRight(self):
+        print "Controller: RIGHT"
+
+    def turretStop(self):
+        print "Controller: STOP"
+
+    def turretFire(self):
+        print "Controller: FIRE"
+
+
+        
 
 class CommandParser(object):
     
@@ -149,11 +221,11 @@ class CommandParser(object):
 
 class SkypeServer():
     
-    def __init__(self):
+    def __init__(self, controller):
         # Create an instance of the Skype class.
         self.skype = Skype.GetSkype(keypair.keyFileName)
         self.parser = CommandParser()
-        self.controller = LauncherController()
+        self.controller = controller
         self.tracker = None
 
         self.loggedIn = False
@@ -235,9 +307,7 @@ class SkypeServer():
             periodically on the system """
         if self.tracker is not None:
             if self.tracker.newFrameAvailable():
-                pos = self.tracker.getCurrentPosition()
-                print pos
-                
+		self.controller.follow(self.tracker)
             else:
                 time.sleep(0.05)
         else:
@@ -269,24 +339,16 @@ class SkypeServer():
 
         # Real commands
         if cmdId == CommandParser.UP:
-            self.controller.turretUp()
-            time.sleep(0.05 * times)
-            self.controller.turretStop()
+            self.controller.turretOneUp()
 
         elif cmdId == CommandParser.DOWN:
-            self.controller.turretDown()
-            time.sleep(0.05 * times)
-            self.controller.turretStop()
+            self.controller.turretOneDown()
 
         elif cmdId == CommandParser.LEFT:
-            self.controller.turretLeft()
-            time.sleep(0.1 * times)
-            self.controller.turretStop()
+            self.controller.turretOneLeft()
 
         elif cmdId == CommandParser.RIGHT:
-            self.controller.turretRight()
-            time.sleep(0.1 * times)
-            self.controller.turretStop()
+            self.controller.turretOneRight()
 
         elif cmdId == CommandParser.FIRE:
             self.controller.turretFire()
@@ -309,11 +371,17 @@ class SkypeServer():
 
 if __name__ == "__main__":
 
-    # import sys
+    import sys
+
     # cp = CommandParser()
     # (cmd, args) = cp.parse(sys.argv[1])
     # print cp.getCommandName(cmd), args
 
-    server = SkypeServer()
+    if len(sys.argv) > 1 and sys.argv[1]=='--fake':
+        controller = FakeLauncherController()
+    else:
+        controller = LauncherController()
+
+    server = SkypeServer(controller)
     server.start()
     server.stop()
