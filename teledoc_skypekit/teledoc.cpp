@@ -7,16 +7,9 @@ using namespace std;
 using namespace boost::python;
 
 
-#define SID_MAKEFOURCC(ch0, ch1, ch2, ch3)                              \
-  ( (unsigned long)(unsigned char)(ch0)         | ( (unsigned long)(unsigned char)(ch1) << 8 ) | \
-    ( (unsigned long)(unsigned char)(ch2) << 16 ) | ( (unsigned long)(unsigned char)(ch3) << 24 ) )
-
-#define GRAPHICAL_DEBUG
-
-static void mouse_callback(int event, int x, int y, int flags, void* param);
-
-
-TeledocRenderer::TeledocRenderer(int centerSize, int color, int tolerance) {
+TeledocRenderer::TeledocRenderer(int centerSize, int color, int tolerance) :
+  tracker(centerSize, color, tolerance)
+{
   // Here we will inform the runtime that we are capable of drawing
   // RGB32 and RGB24 bitmaps. The runtime will pick the most suitable
   // of those. Format of the frames we receive back will be included in the
@@ -26,16 +19,6 @@ TeledocRenderer::TeledocRenderer(int centerSize, int color, int tolerance) {
   list[0] = SID_MAKEFOURCC('B','I','3','2');
   list[1] = SID_MAKEFOURCC('B','I','2','4');
   ipc.setPreferences(2, list);
-
-  frame_width = 0;
-  frame_height = 0;
-
-  center_size = centerSize;
-
-  this->tolerance = tolerance;
-
-  colorLB = cvScalar(color-tolerance, 100, 100);
-  colorUB = cvScalar(color+tolerance, 255, 255);
 }
 
 
@@ -101,25 +84,6 @@ int TeledocRenderer::getKey() {
 
 IplImage* TeledocRenderer::qImageToIplImage(const QImage * qimg)
 {
-  // int width = qImage->width();
-  // int height = qImage->height();
-  // CvSize Size;
-  // Size.height = height;
-  // Size.width = width;
-    
-  // IplImage *charIplImageBuffer = cvCreateImage(Size, IPL_DEPTH_8U, 1);
-  // char *charTemp = (char *) charIplImageBuffer->imageData;
- 
-  // for (int y = 0; y < height; y++)
-  //   {
-  //     for (int x = 0; x < width; x++)
-  //       {
-  //         int index = y * width + x;
-  //         charTemp[index] = (char) qGray(qImage->pixel(x, y));
-  //       }
-  //   }
-  // return charIplImageBuffer;
-
   IplImage *imgHeader = cvCreateImageHeader( cvSize(qimg->width(), qimg->height()), IPL_DEPTH_8U, 4);
   imgHeader->imageData = (char*) qimg->bits();
 
@@ -132,187 +96,24 @@ IplImage* TeledocRenderer::qImageToIplImage(const QImage * qimg)
 }
   
 
-IplImage* TeledocRenderer::getThresholdedImage(IplImage* img)
-{
-  // Convert the image into an HSV image
-  IplImage* imgHSV = cvCreateImage(cvGetSize(img), 8, 3);
-  cvCvtColor(img, imgHSV, CV_BGR2HSV);
-
-  IplImage* imgThreshed = cvCreateImage(cvGetSize(img), 8, 1);
-
-  // Values 20,100,100 to 30,255,255 working perfect for yellow at around 6pm
-  cvInRangeS(imgHSV, colorLB, colorUB, imgThreshed);
-
-  cvReleaseImage(&imgHSV);
-
-  return imgThreshed;
-}
 
 
-TeledocRenderer::TRACK_POSITION TeledocRenderer::getPosition(IplImage* frame){
-
-  // Will hold a frame captured from the camera
-  // IplImage* frame = 0;
-  // frame = cvQueryFrame(capture);
-
-  // Holds the yellow thresholded image (yellow = white, rest = black)
-  IplImage* imgYellowThresh = getThresholdedImage(frame);
-
-  // Calculate the moments to estimate the position of the ball
-  CvMoments *moments = (CvMoments*)malloc(sizeof(CvMoments));
-
-  cvMoments(imgYellowThresh, moments, 1);
-
-  // The actual moment values
-  double moment10 = cvGetSpatialMoment(moments, 1, 0);
-  double moment01 = cvGetSpatialMoment(moments, 0, 1);
-  double area = cvGetCentralMoment(moments, 0, 0);
-
-  // Holding the last and current ball positions
-  int posX = 0;
-  int posY = 0;
-
-  posX = moment10/area;
-  posY = moment01/area;
-
-  // Print it out for debugging purposes
-
-#ifdef GRAPHICAL_DEBUG
-  updateDebug(frame, imgYellowThresh, posX, posY);
-#else
-  printf("position (%d,%d)\n", posX, posY);
-#endif
-
-  // Release the thresholded image... we need no memory leaks.. please
-  cvReleaseImage(&imgYellowThresh);
-
-  delete moments;
-
-  return getPosition(posX, posY);
-}
-
-/* Compute the position by comparing the values (x,y) with 
-   the edges of the areas. Returns ERROR if the points are 
-   outside of the picture.
-*/
-TeledocRenderer::TRACK_POSITION TeledocRenderer::getPosition(int x, int y) {
-  
-  if ( x < 0 || y < 0 ) 
-    return TeledocRenderer::ERROR;
-  else if ( x > frame_width || y > frame_height )
-    return TeledocRenderer::ERROR;
-  else if ( x > east_edge)
-    return TeledocRenderer::EAST;
-  else if ( x < west_edge)
-    return TeledocRenderer::WEST;
-  else if ( y < north_edge)
-    return TeledocRenderer::NORTH;
-  else if ( y > south_edge)
-    return TeledocRenderer::SOUTH;
-  else
-    return TeledocRenderer::CENTER;
-}
-
-/* Computes the edges location by making some calculation
-   over the image size.
- */
-void TeledocRenderer::computeEdges(){
-  
-
-  int central_height = (center_size * frame_height)/100;
-  int central_width = (center_size * frame_width)/100;
-
-  north_edge = (frame_height - central_height)/2;
-  south_edge = frame_height - north_edge;
-
-  west_edge = (frame_width - central_width) /2;
-  east_edge = frame_width - west_edge;
-
-  assert(north_edge >= 0 );
-  assert(south_edge >= 0 );
-  assert(east_edge >= 0 );
-  assert(west_edge >= 0 );
-}
-
-
-TeledocRenderer::TRACK_POSITION TeledocRenderer::getCurrentPosition() {
+Tracker::TRACK_POSITION TeledocRenderer::getCurrentPosition() {
   IplImage* img = getFrameImage();
 
   if (NULL == img) {
     cout << "Retrived a NULL image..." << endl;
-    return TeledocRenderer::ERROR;
+    return Tracker::ERROR;
   }
 
-  if (0 == frame_width && 0 == frame_height) {
-    /* First initialization */
-    cout << "Initializing constraints..." << endl;
-
-    frame_width = cvGetSize(img).width;
-    frame_height = cvGetSize(img).height;
-
-    cout << "  frame_width = " << frame_width << endl;
-    cout << "  frame_height = " << frame_height << endl;
-
-    computeEdges();
-  }
-
-  TeledocRenderer::TRACK_POSITION res = getPosition(img);
+  Tracker::TRACK_POSITION res = tracker.getPosition(img);
   cvReleaseImage(&img);
   return res;
 }
 
-void TeledocRenderer::updateDebug(IplImage* frame, IplImage* thresholded, int x, int y){
-  cvNamedWindow("video");
-  cvNamedWindow("thresh");
-
-  /* Draw Edges */
-  /* Maybe move globally, during ComputeEdges? */
-  IplImage* imgEdges = cvCreateImage(cvGetSize(frame), 8, 3);
-  IplImage* imgHSV = cvCreateImage(cvGetSize(frame), 8, 3);
-  cvCvtColor(frame, imgHSV, CV_BGR2HSV);
-
-  cvMerge(thresholded, thresholded, thresholded, NULL, imgEdges);
-
-  cvLine(imgEdges, 
-	 cvPoint(0, north_edge), 
-	 cvPoint(frame_width, north_edge), 
-	 cvScalar(0,255,255), 5);
-
-  cvLine(imgEdges, 
-	 cvPoint(0, south_edge), 
-	 cvPoint(frame_width, south_edge), 
-	 cvScalar(0,255,255), 5);
-
-  cvLine(imgEdges, 
-	 cvPoint(east_edge, 0), 
-	 cvPoint(east_edge, frame_height), 
-	 cvScalar(0,255,255), 5);
-
-  cvLine(imgEdges, 
-	 cvPoint(west_edge, 0), 
-	 cvPoint(west_edge, frame_height), 
-	 cvScalar(0,255,255), 5);
-
-  cvCircle(imgEdges, cvPoint(x,y), 2, cvScalar(0, 255, 255));
-  /* Maybe we should work on a copy of thresholded ? */
-  //cvAdd(imgEdges, thresholded, imgEdges);
-
-  cvShowImage("thresh", imgEdges);
-  cvShowImage("video", frame);
-
-  this->last_frame = imgHSV;
-  cvSetMouseCallback("video", mouse_callback, (void*) this);
-
-  cvWaitKey(10);
-
-  cvReleaseImage(&imgEdges);
-  cvReleaseImage(&imgHSV);
-} 
-
  
 void TeledocRenderer::setColor(int color) {
-  colorLB = cvScalar(color - this->tolerance, 50, 50);
-  colorUB = cvScalar(color + this->tolerance, 255, 255);
+  tracker.setColor(color);
 }
 
 
@@ -324,56 +125,12 @@ BOOST_PYTHON_MODULE(teledoc)
 .def("getCurrentPosition", &TeledocRenderer::getCurrentPosition)
 ;
 
-  enum_<TeledocRenderer::TRACK_POSITION >("TRACK_POSITION")
-    .value("CENTER", TeledocRenderer::CENTER)
-    .value("NORTH", TeledocRenderer::NORTH)
-    .value("SOUTH", TeledocRenderer::SOUTH)
-    .value("WEST", TeledocRenderer::WEST)
-    .value("EAST", TeledocRenderer::EAST)
-    .value("ERROR", TeledocRenderer::ERROR)
+  enum_<Tracker::TRACK_POSITION >("TRACK_POSITION")
+    .value("CENTER", Tracker::CENTER)
+    .value("NORTH", Tracker::NORTH)
+    .value("SOUTH", Tracker::SOUTH)
+    .value("WEST", Tracker::WEST)
+    .value("EAST", Tracker::EAST)
+    .value("ERROR", Tracker::ERROR)
     ;
 }
-
-
-
-
-static void mouse_callback(int event, int x, int y, int flags, void* param) {
-  TeledocRenderer* tr = (TeledocRenderer*) param;
-  IplImage* img = (IplImage*) tr->last_frame;
-
-  if (event == CV_EVENT_LBUTTONDOWN) {
-    //cout << "X=" << x << ", Y=" << y << endl;
-    //    CvScalar s = cvGet2D(image, x, y);
-    tr->setColor(((uchar *)(img->imageData + x*img->widthStep))[y*img->nChannels +0]);
-  }        
-}
-
-
-// static PyObject *
-// teledoc_get_frame(PyObject *self, PyObject *args);
-
-
-// static PyMethodDef TeledocMethods[] = {
-//     {"getCurrentFrame",  teledoc_get_frame, METH_VARARGS, "Gets a matrix of RGB values"},
-//     {NULL, NULL, 0, NULL}        /* Sentinel */
-// };
-
-
-// PyMODINIT_FUNC
-// initteledoc(void)
-// {
-//     (void) Py_InitModule("teledoc", TeledocMethods);
-// }
-
-
-// static PyObject *
-// teledoc_get_frame(PyObject *self, PyObject *args)
-// {
-//     const char *command;
-//     int sts;
-
-//     if (!PyArg_ParseTuple(args, "s", &command))
-//         return NULL;
-//     sts = system(command);
-//     return Py_BuildValue("i", sts);
-// }
