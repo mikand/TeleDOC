@@ -9,7 +9,7 @@
 #endif
 
 
-#define DEFAULT_TOLERANCE 5
+#define DEFAULT_TOLERANCE 4
 
 #define SID_MAKEFOURCC(ch0, ch1, ch2, ch3)                              \
   ( (unsigned long)(unsigned char)(ch0)         | ( (unsigned long)(unsigned char)(ch1) << 8 ) | \
@@ -34,6 +34,8 @@ public :
   void setColor(int color);
 
 
+  IplImage* last_frame;
+
 private:
   IplImage* getThresholdedImage(IplImage* img);
   TRACK_POSITION getPosition(int x, int y);
@@ -54,6 +56,7 @@ private:
   int south_edge;
   int east_edge;
   int west_edge;
+  int color;
 
 };
 

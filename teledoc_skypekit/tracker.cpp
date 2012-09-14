@@ -17,9 +17,33 @@ Tracker::Tracker(int centerSize, int color, int tolerance)
   center_size = centerSize;
 
   this->tolerance = tolerance;
+  setColor(color);
+}
 
-  colorLB = cvScalar(color-tolerance, 100, 100);
-  colorUB = cvScalar(color+tolerance, 255, 255);
+
+void reduceTo64Colors(IplImage *img, IplImage *img_quant) {
+    int i,j;
+    int height   = img->height;   
+    int width    = img->width;    
+    int step     = img->widthStep;
+
+    uchar *data = (uchar *)img->imageData;
+    int step2 = img_quant->widthStep;
+    uchar *data2 = (uchar *)img_quant->imageData;
+
+    for (i = 0; i < height ; i++)  {
+        for (j = 0; j < width; j++)  {
+
+          // operator XXXXXXXX & 11000000 equivalent to  XXXXXXXX AND 11000000 (=192)
+          // operator 01000000 >> 2 is a 2-bit shift to the right = 00010000 
+          uchar C1 = (data[i*step+j*3+0] & 192)>>2;
+          uchar C2 = (data[i*step+j*3+1] & 192)>>4;
+          uchar C3 = (data[i*step+j*3+2] & 192)>>6;
+
+          data2[i*step2+j] = C1 | C2 | C3; // merges the 2 MSB of each channel
+        }     
+    }
+    return;
 }
 
 
@@ -28,6 +52,13 @@ IplImage* Tracker::getThresholdedImage(IplImage* img)
   // Convert the image into an HSV image
   IplImage* imgHSV = cvCreateImage(cvGetSize(img), 8, 3);
   cvCvtColor(img, imgHSV, CV_BGR2HSV);
+  cvSmooth(imgHSV, imgHSV, CV_GAUSSIAN, 21);
+
+  // IplImage* red = cvCreateImage(cvGetSize(img), 8, 3);
+  // reduceTo64Colors(imgHSV, red);
+  // cvNamedWindow("reduced");
+  // cvShowImage("reduced", red);
+
 
   IplImage* imgThreshed = cvCreateImage(cvGetSize(img), 8, 1);
   
@@ -61,6 +92,8 @@ Tracker::TRACK_POSITION Tracker::getPosition(IplImage* frame)
     computeEdges();
   }
 
+
+  //last_frame = frame;
 
   // Will hold a frame captured from the camera
   // IplImage* frame = 0;
@@ -151,12 +184,19 @@ void Tracker::computeEdges(){
 void Tracker::updateDebug(IplImage* frame, IplImage* thresholded, int x, int y){
   cvNamedWindow("video");
   cvNamedWindow("thresh");
-  
+  cvNamedWindow("smooth");
+
+  cvCreateTrackbar("Tolerance", "video", &tolerance, 30, NULL);
+  //setColor(color);
+
   /* Draw Edges */
   /* Maybe move globally, during ComputeEdges? */
   IplImage* imgEdges = cvCreateImage(cvGetSize(frame), 8, 3);
-
   cvMerge(thresholded, thresholded, thresholded, NULL, imgEdges);
+
+  IplImage* smoothImg = cvCreateImage(cvGetSize(frame), 8, 3);  
+  cvSmooth(frame, smoothImg, CV_GAUSSIAN, 21);
+  last_frame = smoothImg;
 
   cvLine(imgEdges, 
 	 cvPoint(0, north_edge), 
@@ -184,28 +224,39 @@ void Tracker::updateDebug(IplImage* frame, IplImage* thresholded, int x, int y){
 
   cvShowImage("thresh", imgEdges);
   cvShowImage("video", frame);
+  cvShowImage("smooth", smoothImg);
 
   cvSetMouseCallback("video", mouse_callback, (void*) this);
 
-  cvWaitKey(10);
+  cvWaitKey(100);
 
   cvReleaseImage(&imgEdges);
+  cvReleaseImage(&smoothImg);
 } 
 
 void Tracker::setColor(int color) {
-  colorLB = cvScalar(color - this->tolerance, 50, 50);
-  colorUB = cvScalar(color + this->tolerance, 255, 255);
+  colorLB = cvScalar(color - this->tolerance, 80, 80);
+  colorUB = cvScalar(color + this->tolerance, 230, 230);
+  this->color = color;
 }
 
 
 static void mouse_callback(int event, int x, int y, int flags, void* param) {
-  Tracker* tr = (Tracker*) param;
-  // IplImage* img = (IplImage*) tr->last_frame;
+  if (event == CV_EVENT_LBUTTONDOWN) {
+    Tracker* tr = (Tracker*) param;
+    IplImage* img = (IplImage*) tr->last_frame;
 
-  // if (event == CV_EVENT_LBUTTONDOWN) {
-  //   //cout << "X=" << x << ", Y=" << y << endl;
-  //   //    CvScalar s = cvGet2D(image, x, y);
-  //   tr->setColor(((uchar *)(img->imageData + x*img->widthStep))[y*img->nChannels +0]);
-  // } 
-  
+    if (NULL != img) {
+      IplImage* hsv = cvCreateImage(cvGetSize(img), 8, 3);
+      cvCvtColor(img, hsv, CV_BGR2HSV);
+
+      uchar H = ((uchar *)(hsv->imageData + x*hsv->widthStep))[y*hsv->nChannels +0];
+
+      cout << "Detected HUE is " << (int) H << endl;
+      cvWaitKey(1000);
+      tr->setColor((int) H);
+
+      cvReleaseImage(&hsv);
+    }
+  } 
 }
