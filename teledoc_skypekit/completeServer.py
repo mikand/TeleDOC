@@ -339,6 +339,7 @@ class SkypeServer():
         self.tracker = None
         pass
 
+
     def login(self):
         account = self.skype.GetAccount(accountName)
         account.LoginWithPassword(accountPsw, False, False)
@@ -358,6 +359,7 @@ class SkypeServer():
             print "\nExiting TeleDOC MissileLauncher\n"
         return
 
+
     def quit(self):
         self.skype.stop()
 
@@ -372,15 +374,6 @@ class SkypeServer():
                 time.sleep(0.05)
         else:
             time.sleep(0.2)
-
-
-    def onCallStatus(self, call, status):
-        # TODO: update to skypekit
-        if status == Skype4Py.clsRinging:
-            print "Accepting call from %s" % call.PartnerHandle
-            call.Answer()
-            time.sleep(2)
-            call.StartVideoSend()
 
 
     def doCommand(self, cmd):
