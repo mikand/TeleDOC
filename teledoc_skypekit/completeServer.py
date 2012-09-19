@@ -16,8 +16,8 @@ sys.path.append(keypair.distroRoot + '/interfaces/skype/python')
 
 import Skype
 
-accountName = "teledoc2000"
-accountPsw = "teledoc2000"
+accountName = "teledoc3000"
+accountPsw = "teledoc3000"
 
 
 class ExitException(Exception):
@@ -46,36 +46,56 @@ class LauncherController(object):
     def init_device(self, idVendor, idProduct):
         self.dev = usb.core.find(idVendor=idVendor, idProduct=idProduct)
         if self.dev is None:
-            raise ValueError('Launcher not connected!')
-         
-        if self.dev.is_kernel_driver_active(0) is True:
-            self.dev.detach_kernel_driver(0)
+            print('Launcher not connected, fallback to debug mode!')
+            self.debug = True
+        else:
+            self.debug = False
+            if self.dev.is_kernel_driver_active(0) is True:
+                self.dev.detach_kernel_driver(0)
 
-        self.dev.set_configuration()
+            self.dev.set_configuration()
 
     def turretUp(self):
         """ Start moving the turret up-wards """
-        self.dev.ctrl_transfer(0x21,0x09,0,0,[0x02,0x02,0x00,0x00,0x00,0x00,0x00,0x00]) 
+        if self.debug:
+            print "Moving turret up!"
+        else:
+            self.dev.ctrl_transfer(0x21,0x09,0,0,[0x02,0x02,0x00,0x00,0x00,0x00,0x00,0x00]) 
 
     def turretDown(self):
         """ Start moving the turret down-wards """
-        self.dev.ctrl_transfer(0x21,0x09,0,0,[0x02,0x01,0x00,0x00,0x00,0x00,0x00,0x00])
+        if self.debug:
+            print "Moving turret down!"
+        else:
+            self.dev.ctrl_transfer(0x21,0x09,0,0,[0x02,0x01,0x00,0x00,0x00,0x00,0x00,0x00])
 
     def turretLeft(self):
         """ Start moving the turret left-wards """
-        self.dev.ctrl_transfer(0x21,0x09,0,0,[0x02,0x04,0x00,0x00,0x00,0x00,0x00,0x00])
+        if self.debug:
+            print "Moving turret left!"
+        else:
+            self.dev.ctrl_transfer(0x21,0x09,0,0,[0x02,0x04,0x00,0x00,0x00,0x00,0x00,0x00])
 
     def turretRight(self):
         """ Start moving the turret right-wards """
-        self.dev.ctrl_transfer(0x21,0x09,0,0,[0x02,0x08,0x00,0x00,0x00,0x00,0x00,0x00])
+        if self.debug:
+            print "Moving turret right!"
+        else:
+            self.dev.ctrl_transfer(0x21,0x09,0,0,[0x02,0x08,0x00,0x00,0x00,0x00,0x00,0x00])
 
     def turretStop(self):
         """ Stop moving the turret """
-        self.dev.ctrl_transfer(0x21,0x09,0,0,[0x02,0x20,0x00,0x00,0x00,0x00,0x00,0x00])
+        if self.debug:
+            print "Stopping turret"
+        else:
+            self.dev.ctrl_transfer(0x21,0x09,0,0,[0x02,0x20,0x00,0x00,0x00,0x00,0x00,0x00])
 
     def turretFire(self):
         """ Shoot """
-        self.dev.ctrl_transfer(0x21,0x09,0,0,[0x02,0x10,0x00,0x00,0x00,0x00,0x00,0x00])
+        if self.debug:
+            print "Firing turret!"
+        else:
+            self.dev.ctrl_transfer(0x21,0x09,0,0,[0x02,0x10,0x00,0x00,0x00,0x00,0x00,0x00])
 
     def turretOneUp(self, times=1):
         """ Moves the turret up-wards by one pseudo-unit """
@@ -227,6 +247,7 @@ class SkypeServer():
         self.parser = CommandParser()
         self.controller = controller
         self.tracker = None
+        self.video = None
 
         self.loggedIn = False
         self.devices = None
@@ -254,6 +275,36 @@ class SkypeServer():
                 conversation.PostText(res, False)
 
 
+        def onPickUpCall(conversation):
+            conversation.JoinLiveSession('')
+
+            if self.devices is None:
+                self.initializeVideo()
+
+            participants = conversation.GetParticipants('MYSELF')
+            video = participants[0].GetVideo()
+            video.SelectVideoSource("MEDIA_VIDEO", 
+                                    self.devices[0][0],
+                                    self.devices[1][0])
+
+            conversation.MuteMyMicrophone()
+            video.Start()
+
+
+        def onConversationChange(self, property_name):
+            if property_name == 'local_livestatus':
+		if self.local_livestatus == 'RINGING_FOR_ME':
+                    self.PickUpCall();
+
+
+        def SkypeOnConversationListChange(self, conversation, type, added):
+            if type == 'LIVE_CONVERSATIONS':
+		if conversation.local_livestatus == 'RINGING_FOR_ME':
+                    conversation.PickUpCall();
+
+        Skype.Skype.OnConversationListChange = SkypeOnConversationListChange
+        Skype.Conversation.OnPropertyChange = onConversationChange
+        Skype.Conversation.PickUpCall = onPickUpCall
         Skype.Account.OnPropertyChange = onChangeAccount
         self.skype.OnAvailableDeviceListChange = onAvailableDeviceListChange
         self.skype.OnMessage = onMessageStatus
@@ -261,16 +312,25 @@ class SkypeServer():
         self.onAvailableDeviceListChange = onAvailableDeviceListChange
         return
 
-    def initializeTracking(self, color):
-        # TODO: adjust these constants
-        self.tracker = teledoc.TeledocRenderer(50, color, 5)
-
+    def initializeVideo(self):
         while self.devices == None:
             self.onAvailableDeviceListChange(self.skype)
             time.sleep(1)
 
         # Get the first device
-        self.video = self.skype.GetPreviewVideo('MEDIA_VIDEO', self.devices[0][0], self.devices[1][0])
+        self.video = self.skype.GetPreviewVideo('MEDIA_VIDEO', 
+                                                self.devices[0][0],
+                                                self.devices[1][0])
+        return
+
+
+    def initializeTracking(self, color):
+        # TODO: adjust these constants
+        self.tracker = teledoc.TeledocRenderer(50, color, 5)
+
+        if self.video == None:
+            self.initializeVideo()
+
         self.video.SetRemoteRendererId(self.tracker.getKey())
 
 
@@ -278,6 +338,7 @@ class SkypeServer():
         self.video.SetRemoteRendererId(0)
         self.tracker = None
         pass
+
 
     def login(self):
         account = self.skype.GetAccount(accountName)
@@ -298,6 +359,7 @@ class SkypeServer():
             print "\nExiting TeleDOC MissileLauncher\n"
         return
 
+
     def quit(self):
         self.skype.stop()
 
@@ -307,20 +369,11 @@ class SkypeServer():
             periodically on the system """
         if self.tracker is not None:
             if self.tracker.newFrameAvailable():
-		self.controller.follow(self.tracker)
+                self.controller.follow(self.tracker)
             else:
                 time.sleep(0.05)
         else:
             time.sleep(0.2)
-
-
-    def onCallStatus(self, call, status):
-        # TODO: update to skypekit
-        if status == Skype4Py.clsRinging:
-            print "Accepting call from %s" % call.PartnerHandle
-            call.Answer()
-            time.sleep(2)
-            call.StartVideoSend()
 
 
     def doCommand(self, cmd):
@@ -384,4 +437,4 @@ if __name__ == "__main__":
 
     server = SkypeServer(controller)
     server.start()
-    server.stop()
+    server.quit()
