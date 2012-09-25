@@ -254,7 +254,8 @@ class SkypeServer():
             self.controller.turretStop()
 
         elif cmdId == CommandParser.FIRE:
-            self.controller.turretFire()
+            for i in range(0, times):
+                self.controller.turretFire()
 
         # Tracking commands
         elif cmdId == CommandParser.TRACK:
