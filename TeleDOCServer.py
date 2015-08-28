@@ -9,23 +9,19 @@ import argparse
 import usb.core
 
 
-
 class ExitException(Exception):
     def __init__(self, msg):
+        Exception.__init__(self)
         self.message = msg
 
-    pass
 
 
 class NoExitArgumentParser(argparse.ArgumentParser):
-
     def _print_message(self, message, file=None):
         raise ExitException(message)
 
     def exit(self, status=0, message=None):
         raise ExitException(message)
-       
-    pass
 
 
 class LauncherController(object):
@@ -34,14 +30,14 @@ class LauncherController(object):
         self.dev = usb.core.find(idVendor=0x2123, idProduct=0x1010)
         if self.dev is None:
             raise ValueError('Launcher not connected!')
-         
+
         if self.dev.is_kernel_driver_active(0) is True:
             self.dev.detach_kernel_driver(0)
 
         self.dev.set_configuration()
 
     def turretUp(self):
-        self.dev.ctrl_transfer(0x21,0x09,0,0,[0x02,0x02,0x00,0x00,0x00,0x00,0x00,0x00]) 
+        self.dev.ctrl_transfer(0x21,0x09,0,0,[0x02,0x02,0x00,0x00,0x00,0x00,0x00,0x00])
 
     def turretDown(self):
         self.dev.ctrl_transfer(0x21,0x09,0,0,[0x02,0x01,0x00,0x00,0x00,0x00,0x00,0x00])
@@ -58,11 +54,9 @@ class LauncherController(object):
     def turretFire(self):
         self.dev.ctrl_transfer(0x21,0x09,0,0,[0x02,0x10,0x00,0x00,0x00,0x00,0x00,0x00])
 
-    pass
-
 
 class CommandParser(object):
-    
+
     # Command tokens
     (UP, DOWN, LEFT, RIGHT, FIRE, HELP, UNKNOWN, TRACK, UNTRACK) = range(0,9)
 
@@ -133,34 +127,10 @@ class CommandParser(object):
         except ExitException as e:
             return (self.HELP, [e.message])
 
-    # [APP] This seems deprecated...
-    def getCommandName(self, cmdId):
-        if cmdId == self.UP:
-            return "UP"
-
-        if cmdId == self.DOWN:
-            return "DOWN"
-
-        if cmdId == self.LEFT:
-            return "LEFT"
-
-        if cmdId == self.RIGHT:
-            return "RIGHT"
-
-        if cmdId == self.FIRE:
-            return "FIRE"
-
-        if cmdId == self.HELP:
-            return "HELP"
-        
-        return "UNKNOWN"
-
-    pass
-
 
 
 class SkypeServer():
-    
+
     def __init__(self):
         # Create an instance of the Skype class.
         self.skype = Skype4Py.Skype(Transport='x11')
@@ -186,8 +156,8 @@ class SkypeServer():
             print "\nExiting TeleDOC MissileLauncher\n"
         return
 
-    def schedule_activities():
-        """ Here we can insert code that needs to be run 
+    def schedule_activities(self):
+        """ Here we can insert code that needs to be run
             periodically on the system """
         if self.tracker is not None:
             # Cool tracker control loop
@@ -199,7 +169,8 @@ class SkypeServer():
             # ...
             pass
         else:
-            timer.sleep(5)
+            #timer.sleep(5)
+            pass
 
     def onCallStatus(self, call, status):
         # Respond automatically with video
@@ -214,13 +185,13 @@ class SkypeServer():
         # Dispatch all messages
         if status == Skype4Py.cmsReceived:
             # I received a message
-            res = self.doCommand(message.Body)
+            res = self.do_command(message.Body)
             message.Chat.SendMessage(res)
 
 
-    def doCommand(self, cmd):
+    def do_command(self, cmd):
         (cmdId, args) = self.parser.parse(cmd)
-        
+
         # Handle error messages
         if cmdId == CommandParser.UNKNOWN:
             return "Unknown command. Use 'help' for usage description"
@@ -254,19 +225,10 @@ class SkypeServer():
             self.controller.turretStop()
 
         elif cmdId == CommandParser.FIRE:
-            for i in range(0, times):
+            for _ in xrange(times):
                 self.controller.turretFire()
 
-        # Tracking commands
-        elif cmdId == CommandParser.TRACK:
-            color = args[0]
-#           self.tracker = ColorTracker(...)
-        elif cmdId == CommandParser.UNTRACK:
-            self.tracker = None
-            
         return "done"
-
-    pass
 
 
 
@@ -282,4 +244,3 @@ if __name__ == "__main__":
 
     server = SkypeServer()
     server.start()
-
